@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <GameDir Condition="'$(GameDir)' == ''">$(ANIME_SHOP_GAME_DIR)</GameDir>
+  </PropertyGroup>
+
+  <Target Name="ValidateAnimeShopGameDirectory" BeforeTargets="ResolveAssemblyReferences">
+    <Error
+      Condition="'$(GameDir)' == ''"
+      Text="Не задан путь к Anime Shop Simulator. Передайте -p:GameDir=&quot;C:\path\to\Anime Shop Simulator&quot; или задайте переменную ANIME_SHOP_GAME_DIR." />
+    <Error
+      Condition="'$(GameDir)' != '' and !Exists('$(GameDir)\MelonLoader\net6\MelonLoader.dll')"
+      Text="В GameDir не найдена установленная MelonLoader: $(GameDir)\MelonLoader\net6\MelonLoader.dll" />
+  </Target>
+</Project>
+
