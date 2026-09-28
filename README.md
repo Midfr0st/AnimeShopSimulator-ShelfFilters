@@ -1,4 +1,4 @@
-# Фильтры полок — Anime Shop Simulator
+# Фильтры полок — мод для Anime Shop Simulator
 
 ![Anime Shop Simulator](https://img.shields.io/badge/Anime%20Shop%20Simulator-1.0.6-f6a800)
 ![Version](https://img.shields.io/badge/version-0.10.3-1685d1)
@@ -6,7 +6,7 @@
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3-7952b3)
 ![License](https://img.shields.io/badge/license-MIT-2ea44f)
 
-**Фильтры полок** добавляют правила автоматической выкладки для отдельных секций мебели в **Anime Shop Simulator**.
+**Фильтры полок** — мод для **Anime Shop Simulator** на базе **MelonLoader** и **WolfCore**. Он добавляет правила автоматической выкладки для отдельных секций мебели.
 
 Мод помогает сохранять порядок в магазине: игрок заранее указывает, какой товар разрешено размещать в каждой секции, а выкладчики учитывают выбранные правила.
 
