@@ -14,7 +14,7 @@ using MelonLoader.Utils;
 using Newtonsoft.Json;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(AnimeShopShelfFilters.ShelfFiltersMod), "Anime Shop: Shelf Filters", "0.10.3", "WolfMods")]
+[assembly: MelonInfo(typeof(AnimeShopShelfFilters.ShelfFiltersMod), "Anime Shop: Shelf Filters", "0.10.4", "WolfMods")]
 
 namespace AnimeShopShelfFilters;
 
@@ -214,7 +214,7 @@ public sealed class ShelfFiltersMod : MelonMod
         if (WolfModBridge.TryRegister(
                 WolfModId,
                 "Фильтры полок",
-                "0.10.3",
+                "0.10.4",
                 "Политики секций полок: строгие товары, временные замены и контроль автоматической выкладки.",
                 SetFeatureEnabled,
                 DrawWolfModSettings,
@@ -227,7 +227,7 @@ public sealed class ShelfFiltersMod : MelonMod
                 SortingPatches.Install();
                 _runtimeInitialized = true;
                 LoggerInstance.Msg(
-                    $"Shelf Filters 0.10.3 загружен. Наведитесь на секцию полки и нажмите {KeyNames.Display(ModSettings.MenuKey)}.");
+                    $"Shelf Filters 0.10.4 загружен. Наведитесь на секцию полки и нажмите {KeyNames.Display(ModSettings.MenuKey)}.");
             }
             catch
             {
@@ -2522,7 +2522,8 @@ internal static class SortingPatches
             // item whose destination is no longer available.
             var nativeTarget = __instance.FindNearestDroppedReturnPlace(
                 definitionId,
-                __instance.transform.position);
+                __instance.transform.position,
+                out _);
             if (nativeTarget == null)
                 TryDeferCarriedDroppedProduct(__instance, "после загрузки задания");
         }
@@ -2616,7 +2617,7 @@ internal static class SortingPatches
             // performs it before the walk and pickup animations. If there is no
             // destination, the item remains on the floor and the employee is free to
             // choose another task instead of entering the carried-product retry loop.
-            var nativeTarget = __instance.FindNearestDroppedReturnPlace(definitionId, employeePosition);
+            var nativeTarget = __instance.FindNearestDroppedReturnPlace(definitionId, employeePosition, out _);
             if (nativeTarget != null)
                 return;
 
@@ -2927,7 +2928,8 @@ internal static class SortingPatches
         {
             target = instance.FindNearestDroppedReturnPlace(
                 definitionId,
-                instance.transform.position);
+                instance.transform.position,
+                out _);
         }
 
         var resolved = target != null

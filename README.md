@@ -1,7 +1,7 @@
 # Фильтры полок — мод для Anime Shop Simulator
 
-![Anime Shop Simulator](https://img.shields.io/badge/Anime%20Shop%20Simulator-1.0.6-f6a800)
-![Version](https://img.shields.io/badge/version-0.10.3-1685d1)
+![Anime Shop Simulator](https://img.shields.io/badge/Anime%20Shop%20Simulator-1.0.7-f6a800)
+![Version](https://img.shields.io/badge/version-0.10.4-1685d1)
 ![WolfCore](https://img.shields.io/badge/requires-WolfCore-1685d1)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3-7952b3)
 ![License](https://img.shields.io/badge/license-MIT-2ea44f)
@@ -15,6 +15,8 @@
 Готовая сборка находится в **[последнем выпуске](https://github.com/Midfr0st/AnimeShopSimulator-ShelfFilters/releases/latest)**.
 
 Для работы также необходим [WolfCore](https://github.com/Midfr0st/AnimeShopSimulator-WolfCore).
+
+Описание исправлений: [история изменений](CHANGELOG.md).
 
 ## Возможности
 
@@ -66,9 +68,9 @@ Anime Shop Simulator\UserData\AnimeShopShelfFilters.settings.json
 
 ## Совместимость и ограничения
 
-- Anime Shop Simulator `1.0.6`;
+- Anime Shop Simulator `1.0.7`;
 - MelonLoader `0.7.3`;
-- WolfCore `0.2.5`;
+- WolfCore `0.2.6`;
 - Windows x64, Unity IL2CPP.
 
 Этот мод глубже остальных взаимодействует со штатным поиском заданий выкладчика. После обновлений игры его нужно отдельно проверять на коробках, лежащих товарах, одежде, подушках и дакимакурах.

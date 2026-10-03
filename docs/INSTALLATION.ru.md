@@ -6,7 +6,7 @@
 
 - Anime Shop Simulator для Windows;
 - [MelonLoader](https://github.com/LavaGang/MelonLoader) `0.7.3`;
-- [WolfCore](https://github.com/Midfr0st/AnimeShopSimulator-WolfCore) `0.2.5` или совместимая версия.
+- [WolfCore](https://github.com/Midfr0st/AnimeShopSimulator-WolfCore) `0.2.6` или совместимая версия.
 
 ## Установка
 
