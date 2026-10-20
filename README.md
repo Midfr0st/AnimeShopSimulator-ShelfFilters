@@ -1,7 +1,7 @@
 # Фильтры полок — мод для Anime Shop Simulator
 
-![Anime Shop Simulator](https://img.shields.io/badge/Anime%20Shop%20Simulator-1.0.7-f6a800)
-![Version](https://img.shields.io/badge/version-0.10.4-1685d1)
+![Anime Shop Simulator](https://img.shields.io/badge/Anime%20Shop%20Simulator-1.0.74-f6a800)
+![Version](https://img.shields.io/badge/version-0.10.5-1685d1)
 ![WolfCore](https://img.shields.io/badge/requires-WolfCore-1685d1)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3-7952b3)
 ![License](https://img.shields.io/badge/license-MIT-2ea44f)
@@ -68,12 +68,20 @@ Anime Shop Simulator\UserData\AnimeShopShelfFilters.settings.json
 
 ## Совместимость и ограничения
 
-- Anime Shop Simulator `1.0.7`;
+- Anime Shop Simulator `1.0.74`;
 - MelonLoader `0.7.3`;
 - WolfCore `0.2.6`;
 - Windows x64, Unity IL2CPP.
 
 Этот мод глубже остальных взаимодействует со штатным поиском заданий выкладчика. После обновлений игры его нужно отдельно проверять на коробках, лежащих товарах, одежде, подушках и дакимакурах.
+
+## Проверка на игре 1.0.74 — 20 октября 2026
+
+Для игры 1.0.74 используйте **0.10.5**. Версия 0.10.4 несовместима с изменившимся API поиска заданий выкладчиков. Исправлены поиск заданий выкладчика и конфликт возврата коробки с её выбрасыванием. В короткой игровой проверке у двух выкладчиков подтверждено восемь успешных удалений пустых коробок без прежних конфликтов и ошибок.
+
+Если установлены фильтры полок, обновите их до [0.10.5](https://github.com/Midfr0st/AnimeShopSimulator-ShelfFilters/releases/tag/v0.10.5): исправлены бездействие выкладчиков и сброс пустых коробок возле мусорки.
+
+Подробнее: [результаты и границы проверки всех пяти компонентов](https://github.com/Midfr0st/AnimeShopSimulator-WolfCore/blob/main/docs/COMPATIBILITY-1.0.74.ru.md).
 
 ## Если что-то не работает
 

@@ -14,7 +14,7 @@ using MelonLoader.Utils;
 using Newtonsoft.Json;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(AnimeShopShelfFilters.ShelfFiltersMod), "Anime Shop: Shelf Filters", "0.10.4", "WolfMods")]
+[assembly: MelonInfo(typeof(AnimeShopShelfFilters.ShelfFiltersMod), "Anime Shop: Shelf Filters", "0.10.5", "WolfMods")]
 
 namespace AnimeShopShelfFilters;
 
@@ -153,6 +153,12 @@ public sealed class ShelfFiltersMod : MelonMod
         }
     }
 
+    public override void OnLateUpdate()
+    {
+        if (_runtimeInitialized)
+            SortingPatches.ProcessPendingFullTargetRecoveries();
+    }
+
     public override void OnGUI()
     {
         if (_dependencyFailed)
@@ -214,7 +220,7 @@ public sealed class ShelfFiltersMod : MelonMod
         if (WolfModBridge.TryRegister(
                 WolfModId,
                 "Фильтры полок",
-                "0.10.4",
+                "0.10.5",
                 "Политики секций полок: строгие товары, временные замены и контроль автоматической выкладки.",
                 SetFeatureEnabled,
                 DrawWolfModSettings,
@@ -227,7 +233,7 @@ public sealed class ShelfFiltersMod : MelonMod
                 SortingPatches.Install();
                 _runtimeInitialized = true;
                 LoggerInstance.Msg(
-                    $"Shelf Filters 0.10.4 загружен. Наведитесь на секцию полки и нажмите {KeyNames.Display(ModSettings.MenuKey)}.");
+                    $"Shelf Filters 0.10.5 загружен. Наведитесь на секцию полки и нажмите {KeyNames.Display(ModSettings.MenuKey)}.");
             }
             catch
             {
@@ -2297,8 +2303,10 @@ internal static class SortingPatches
     private static readonly List<EmptyPlacementCandidate> EmptyPlacementCandidateScratch = new();
     private static readonly Dictionary<long, float> EmptyPlacementRetryAfter = new();
     private static readonly Dictionary<int, NativeAssignmentClearRequest> NativeAssignmentClearRequests = new();
-    private static readonly Dictionary<int, ExactTargetState> NativeWaitingTargetStateCache = new();
+    private static readonly Dictionary<(int WorkerId, int DefinitionId), ExactTargetState> NativeWaitingTargetStateCache = new();
     private static readonly Dictionary<int, long> RecoveredFullTargets = new();
+    private static readonly Dictionary<int, PendingFullTargetRecovery> PendingFullTargetRecoveries = new();
+    private static readonly List<int> FullTargetRecoveryScratch = new();
     private static readonly Dictionary<int, long> RecoveredDroppedTargets = new();
     private static readonly Dictionary<int, FailedPlacementTarget> FailedPlacementTargets = new();
     private static readonly Dictionary<string, WaitingDroppedItem> WaitingDroppedItems =
@@ -2323,6 +2331,12 @@ internal static class SortingPatches
     private static bool _waitingDroppedPickupSearchActive;
 
     private readonly record struct NativeAssignmentClearRequest(string ProductId, float RetryAfter);
+    private readonly record struct PendingFullTargetRecovery(
+        EmployeeSortingController Worker,
+        int TaskVersion,
+        int PickupId,
+        int TargetId,
+        int EarliestFrame);
 
     public static void Install()
     {
@@ -2363,6 +2377,8 @@ internal static class SortingPatches
         WaitingDroppedRemovalScratch.Clear();
         NativeWaitingTargetStateCache.Clear();
         RecoveredFullTargets.Clear();
+        PendingFullTargetRecoveries.Clear();
+        FullTargetRecoveryScratch.Clear();
         RecoveredDroppedTargets.Clear();
         FailedPlacementTargets.Clear();
         _nextWaitingDroppedSequence = 0;
@@ -2523,7 +2539,8 @@ internal static class SortingPatches
             var nativeTarget = __instance.FindNearestDroppedReturnPlace(
                 definitionId,
                 __instance.transform.position,
-                out _);
+                out _,
+                requireReachable: true);
             if (nativeTarget == null)
                 TryDeferCarriedDroppedProduct(__instance, "после загрузки задания");
         }
@@ -2543,6 +2560,89 @@ internal static class SortingPatches
             var pickup = __instance._pickup;
             var target = __instance._productPricePlace;
             if (pickup == null || pickup.Count <= 0 || target == null ||
+                __instance._isDisposingEmptyPickup || __instance._isReturningPickupToOrigin ||
+                !IsPlaceAtCapacity(target))
+            {
+                return;
+            }
+
+            var workerId = __instance.GetInstanceID();
+            var taskVersion = __instance._taskVersion;
+            var pickupId = pickup.GetInstanceID();
+            var targetId = target.GetInstanceID();
+            if (PendingFullTargetRecoveries.TryGetValue(workerId, out var pending) &&
+                pending.TaskVersion == taskVersion && pending.PickupId == pickupId &&
+                pending.TargetId == targetId)
+            {
+                return;
+            }
+
+            // TryAddItem notifies the shelf before the same placement removes
+            // the item from its box. Returning that box in this callback races
+            // the native empty-box disposal if this was the last item.
+            PendingFullTargetRecoveries[workerId] = new PendingFullTargetRecovery(
+                __instance, taskVersion, pickupId, targetId, Time.frameCount + 1);
+        }
+        catch (Exception exception)
+        {
+            WarnAiFailOpen("планирование проверки заполненной секции", exception);
+        }
+    }
+
+    public static void ProcessPendingFullTargetRecoveries()
+    {
+        if (PendingFullTargetRecoveries.Count == 0)
+            return;
+        if (!ShelfFiltersMod.FeatureEnabled)
+        {
+            PendingFullTargetRecoveries.Clear();
+            return;
+        }
+
+        FullTargetRecoveryScratch.Clear();
+        var frame = Time.frameCount;
+        foreach (var entry in PendingFullTargetRecoveries)
+        {
+            if (frame >= entry.Value.EarliestFrame)
+                FullTargetRecoveryScratch.Add(entry.Key);
+        }
+
+        foreach (var workerId in FullTargetRecoveryScratch)
+        {
+            if (!PendingFullTargetRecoveries.TryGetValue(workerId, out var pending))
+                continue;
+            PendingFullTargetRecoveries.Remove(workerId);
+            try
+            {
+                var worker = pending.Worker;
+                if (worker == null || worker._taskVersion != pending.TaskVersion ||
+                    worker._pickup == null || worker._pickup.GetInstanceID() != pending.PickupId ||
+                    worker._productPricePlace == null ||
+                    worker._productPricePlace.GetInstanceID() != pending.TargetId)
+                {
+                    continue;
+                }
+
+                RecoverFullCurrentTarget(worker);
+            }
+            catch (Exception exception)
+            {
+                WarnAiFailOpen("отложенная проверка заполненной секции", exception);
+            }
+        }
+    }
+
+    private static void RecoverFullCurrentTarget(EmployeeSortingController __instance)
+    {
+        if (!ShelfFiltersMod.FeatureEnabled || __instance == null)
+            return;
+
+        try
+        {
+            var pickup = __instance._pickup;
+            var target = __instance._productPricePlace;
+            if (pickup == null || pickup.Count <= 0 || target == null ||
+                __instance._isDisposingEmptyPickup || __instance._isReturningPickupToOrigin ||
                 !IsPlaceAtCapacity(target))
             {
                 return;
@@ -2617,7 +2717,11 @@ internal static class SortingPatches
             // performs it before the walk and pickup animations. If there is no
             // destination, the item remains on the floor and the employee is free to
             // choose another task instead of entering the carried-product retry loop.
-            var nativeTarget = __instance.FindNearestDroppedReturnPlace(definitionId, employeePosition, out _);
+            var nativeTarget = __instance.FindNearestDroppedReturnPlace(
+                definitionId,
+                employeePosition,
+                out _,
+                requireReachable: true);
             if (nativeTarget != null)
                 return;
 
@@ -2630,7 +2734,7 @@ internal static class SortingPatches
                 0f);
             waiting.IsTargetReady = false;
             waiting.NextTargetCheckAt = Time.unscaledTime + WaitingTargetRefreshDelay;
-            NativeWaitingTargetStateCache[definitionId] = new ExactTargetState(
+            NativeWaitingTargetStateCache[(__instance.GetInstanceID(), definitionId)] = new ExactTargetState(
                 targetState.HasTarget,
                 false,
                 targetState.Target,
@@ -2917,7 +3021,10 @@ internal static class SortingPatches
         int definitionId,
         float now)
     {
-        if (NativeWaitingTargetStateCache.TryGetValue(definitionId, out var cached) &&
+        // Reachability in 1.0.74 depends on the employee, so one worker's result
+        // must not suppress another worker's search for the same product.
+        var cacheKey = (instance != null ? instance.GetInstanceID() : 0, definitionId);
+        if (NativeWaitingTargetStateCache.TryGetValue(cacheKey, out var cached) &&
             now < cached.ExpiresAt)
         {
             return cached;
@@ -2929,7 +3036,8 @@ internal static class SortingPatches
             target = instance.FindNearestDroppedReturnPlace(
                 definitionId,
                 instance.transform.position,
-                out _);
+                out _,
+                requireReachable: true);
         }
 
         var resolved = target != null
@@ -2939,7 +3047,7 @@ internal static class SortingPatches
                 IsReady = false,
                 ExpiresAt = now + WaitingTargetRefreshDelay
             };
-        NativeWaitingTargetStateCache[definitionId] = resolved;
+        NativeWaitingTargetStateCache[cacheKey] = resolved;
         return resolved;
     }
 
