@@ -1,7 +1,7 @@
 # Фильтры полок — мод для Anime Shop Simulator
 
-![Anime Shop Simulator](https://img.shields.io/badge/Anime%20Shop%20Simulator-1.0.74-f6a800)
-![Version](https://img.shields.io/badge/version-0.10.5-1685d1)
+![Anime Shop Simulator](https://img.shields.io/badge/Anime%20Shop%20Simulator-1.1.1-f6a800)
+![Version](https://img.shields.io/badge/version-0.10.6-1685d1)
 ![WolfCore](https://img.shields.io/badge/requires-WolfCore-1685d1)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3-7952b3)
 ![License](https://img.shields.io/badge/license-MIT-2ea44f)
@@ -17,6 +17,12 @@
 Для работы также необходим [WolfCore](https://github.com/Midfr0st/AnimeShopSimulator-WolfCore).
 
 Описание исправлений: [история изменений](CHANGELOG.md).
+
+## Проверка на игре 1.1.1 — 19 ноября 2026
+
+Для игры 1.1.1 используйте **0.10.6**. Версия 0.10.5 предназначена для 1.0.74 и несовместима с изменившимся API 1.1.1. Адаптированы поиск места возврата товара, учёт вариантов и проверки общей системы возврата коробок. В журнале игрового запуска есть 83 штатные смены задания после заполнения секций без ошибок.
+
+[Скачать выпуск 0.10.6](https://github.com/Midfr0st/AnimeShopSimulator-ShelfFilters/releases/tag/v0.10.6). Подробнее: [результаты и границы проверки всех пяти компонентов](https://github.com/Midfr0st/AnimeShopSimulator-WolfCore/blob/main/docs/COMPATIBILITY-1.1.1.ru.md).
 
 ## Возможности
 
@@ -68,7 +74,7 @@ Anime Shop Simulator\UserData\AnimeShopShelfFilters.settings.json
 
 ## Совместимость и ограничения
 
-- Anime Shop Simulator `1.0.74`;
+- Anime Shop Simulator `1.1.1`;
 - MelonLoader `0.7.3`;
 - WolfCore `0.2.6`;
 - Windows x64, Unity IL2CPP.

@@ -14,7 +14,7 @@ using MelonLoader.Utils;
 using Newtonsoft.Json;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(AnimeShopShelfFilters.ShelfFiltersMod), "Anime Shop: Shelf Filters", "0.10.5", "WolfMods")]
+[assembly: MelonInfo(typeof(AnimeShopShelfFilters.ShelfFiltersMod), "Anime Shop: Shelf Filters", "0.10.6", "WolfMods")]
 
 namespace AnimeShopShelfFilters;
 
@@ -220,7 +220,7 @@ public sealed class ShelfFiltersMod : MelonMod
         if (WolfModBridge.TryRegister(
                 WolfModId,
                 "Фильтры полок",
-                "0.10.5",
+                "0.10.6",
                 "Политики секций полок: строгие товары, временные замены и контроль автоматической выкладки.",
                 SetFeatureEnabled,
                 DrawWolfModSettings,
@@ -233,7 +233,7 @@ public sealed class ShelfFiltersMod : MelonMod
                 SortingPatches.Install();
                 _runtimeInitialized = true;
                 LoggerInstance.Msg(
-                    $"Shelf Filters 0.10.5 загружен. Наведитесь на секцию полки и нажмите {KeyNames.Display(ModSettings.MenuKey)}.");
+                    $"Shelf Filters 0.10.6 загружен. Наведитесь на секцию полки и нажмите {KeyNames.Display(ModSettings.MenuKey)}.");
             }
             catch
             {
@@ -2303,7 +2303,7 @@ internal static class SortingPatches
     private static readonly List<EmptyPlacementCandidate> EmptyPlacementCandidateScratch = new();
     private static readonly Dictionary<long, float> EmptyPlacementRetryAfter = new();
     private static readonly Dictionary<int, NativeAssignmentClearRequest> NativeAssignmentClearRequests = new();
-    private static readonly Dictionary<(int WorkerId, int DefinitionId), ExactTargetState> NativeWaitingTargetStateCache = new();
+    private static readonly Dictionary<(int WorkerId, string ProductKey), ExactTargetState> NativeWaitingTargetStateCache = new();
     private static readonly Dictionary<int, long> RecoveredFullTargets = new();
     private static readonly Dictionary<int, PendingFullTargetRecovery> PendingFullTargetRecoveries = new();
     private static readonly List<int> FullTargetRecoveryScratch = new();
@@ -2538,9 +2538,11 @@ internal static class SortingPatches
             // item whose destination is no longer available.
             var nativeTarget = __instance.FindNearestDroppedReturnPlace(
                 definitionId,
+                __instance.CarriedDroppedProductId,
                 __instance.transform.position,
                 out _,
-                requireReachable: true);
+                requireReachable: true,
+                variant: __instance.CarriedDroppedProductVariant);
             if (nativeTarget == null)
                 TryDeferCarriedDroppedProduct(__instance, "после загрузки задания");
         }
@@ -2560,7 +2562,7 @@ internal static class SortingPatches
             var pickup = __instance._pickup;
             var target = __instance._productPricePlace;
             if (pickup == null || pickup.Count <= 0 || target == null ||
-                __instance._isDisposingEmptyPickup || __instance._isReturningPickupToOrigin ||
+                IsBoxCleanupOrReturnActive(__instance) ||
                 !IsPlaceAtCapacity(target))
             {
                 return;
@@ -2632,6 +2634,20 @@ internal static class SortingPatches
         }
     }
 
+    private static bool IsBoxCleanupOrReturnActive(EmployeeSortingController instance)
+    {
+        if (instance._isDisposingEmptyPickup || instance._isCommittingEmptyPickup ||
+            instance._cleanupInProgress)
+        {
+            return true;
+        }
+
+        // Since 1.1.1, box returns belong to Employee rather than the sorting
+        // controller. Do not start another task while its shared return is active.
+        var employee = instance.GetComponent<Employee>();
+        return employee != null && employee.IsReturningBox;
+    }
+
     private static void RecoverFullCurrentTarget(EmployeeSortingController __instance)
     {
         if (!ShelfFiltersMod.FeatureEnabled || __instance == null)
@@ -2642,7 +2658,7 @@ internal static class SortingPatches
             var pickup = __instance._pickup;
             var target = __instance._productPricePlace;
             if (pickup == null || pickup.Count <= 0 || target == null ||
-                __instance._isDisposingEmptyPickup || __instance._isReturningPickupToOrigin ||
+                IsBoxCleanupOrReturnActive(__instance) ||
                 !IsPlaceAtCapacity(target))
             {
                 return;
@@ -2675,13 +2691,13 @@ internal static class SortingPatches
 
             // Do not replace _productPricePlace while PutProductsAsync is still
             // completing at the old shelf. Doing so lets that coroutine add the
-            // next item to a remote shelf without walking there. Returning the box
-            // ends the current task cleanly; the game's next search will pick a new
-            // destination and run the normal MoveToShelf path.
+            // next item to a remote shelf without walking there. In 1.1.1 the
+            // native method cancels the task through its cleanup scope, then
+            // selects a new destination and runs the normal MoveToShelf path.
             if (__instance._isPickupTaken && __instance.TryMoveCurrentPickupToOrigin())
             {
                 MelonLogger.Msg(
-                    $"Shelf Filters: остаток коробки возвращается без удалённой выкладки — «{productName}», " +
+                    $"Shelf Filters: запущена штатная смена задания после заполнения секции — «{productName}», " +
                     $"секция {placedCount}/{capacity}, в коробке осталось {remainingCount}; " +
                     targetDetails);
                 return;
@@ -2711,6 +2727,8 @@ internal static class SortingPatches
         {
             if (!TryResolveDroppedIdentity(__result, out var productId, out var definitionId))
                 return;
+            if (!__result.TryGetDroppedProductData(out var nativeProductId, out _, out var variant))
+                return;
 
             // This is the authoritative native destination check. It uses the same
             // method the employee would call immediately after taking the item, but
@@ -2719,9 +2737,11 @@ internal static class SortingPatches
             // choose another task instead of entering the carried-product retry loop.
             var nativeTarget = __instance.FindNearestDroppedReturnPlace(
                 definitionId,
+                nativeProductId,
                 employeePosition,
                 out _,
-                requireReachable: true);
+                requireReachable: true,
+                variant: variant);
             if (nativeTarget != null)
                 return;
 
@@ -2734,7 +2754,7 @@ internal static class SortingPatches
                 0f);
             waiting.IsTargetReady = false;
             waiting.NextTargetCheckAt = Time.unscaledTime + WaitingTargetRefreshDelay;
-            NativeWaitingTargetStateCache[(__instance.GetInstanceID(), definitionId)] = new ExactTargetState(
+            NativeWaitingTargetStateCache[(__instance.GetInstanceID(), productId)] = new ExactTargetState(
                 targetState.HasTarget,
                 false,
                 targetState.Target,
@@ -2923,6 +2943,8 @@ internal static class SortingPatches
             var productId = instance.CarriedDroppedProductId.ToString();
             if (definitionId == 0 || IsEmptyProductId(productId))
                 return false;
+            productId = GetWaitingProductKey(
+                productId, definitionId, instance.CarriedDroppedProductVariant);
 
             var targetState = ResolvePreferredWaitingTargetState(definitionId);
             var now = Time.unscaledTime;
@@ -2999,7 +3021,7 @@ internal static class SortingPatches
             return true;
 
         waiting.NextTargetCheckAt = now + WaitingTargetRefreshDelay;
-        var nativeState = GetNativeWaitingTargetState(instance, waiting.DefinitionId, now);
+        var nativeState = GetNativeWaitingTargetState(instance, waiting, now);
         if (nativeState.IsReady && nativeState.Target != null)
         {
             waiting.Target = nativeState.Target;
@@ -3018,27 +3040,37 @@ internal static class SortingPatches
 
     private static ExactTargetState GetNativeWaitingTargetState(
         EmployeeSortingController instance,
-        int definitionId,
+        WaitingDroppedItem waiting,
         float now)
     {
-        // Reachability in 1.0.74 depends on the employee, so one worker's result
-        // must not suppress another worker's search for the same product.
-        var cacheKey = (instance != null ? instance.GetInstanceID() : 0, definitionId);
+        if (instance == null || waiting.Pickup == null ||
+            !waiting.Pickup.TryGetDroppedProductData(
+                out var productId, out var definitionId, out var variant))
+        {
+            return ResolvePreferredWaitingTargetState(waiting.DefinitionId) with
+            {
+                IsReady = false,
+                ExpiresAt = now + WaitingTargetRefreshDelay
+            };
+        }
+
+        // Reachability is employee-specific; 1.1.1 also distinguishes product
+        // IDs and variants, including keychain foil and collection identity.
+        var cacheKey = (instance.GetInstanceID(),
+            GetWaitingProductKey(productId.ToString(), definitionId, variant));
         if (NativeWaitingTargetStateCache.TryGetValue(cacheKey, out var cached) &&
             now < cached.ExpiresAt)
         {
             return cached;
         }
 
-        ProductPricePlace? target = null;
-        if (instance != null)
-        {
-            target = instance.FindNearestDroppedReturnPlace(
-                definitionId,
-                instance.transform.position,
-                out _,
-                requireReachable: true);
-        }
+        var target = instance.FindNearestDroppedReturnPlace(
+            definitionId,
+            productId,
+            instance.transform.position,
+            out _,
+            requireReachable: true,
+            variant: variant);
 
         var resolved = target != null
             ? new ExactTargetState(true, true, target, now + WaitingTargetRefreshDelay)
@@ -3144,13 +3176,30 @@ internal static class SortingPatches
         if (droppedPickup == null)
             return false;
 
-        definitionId = droppedPickup.ResolveCurrentDefinitionId();
-        var currentProductId = droppedPickup.CurrentProductId;
-        productId = currentProductId.ToString();
-        if (IsEmptyProductId(productId))
-            productId = droppedPickup.ResolveProductId().ToString();
+        if (!droppedPickup.TryGetDroppedProductData(
+                out var currentProductId, out definitionId, out var variant))
+        {
+            return false;
+        }
 
-        return definitionId != 0 && !IsEmptyProductId(productId);
+        productId = currentProductId.ToString();
+        if (definitionId == 0 || IsEmptyProductId(productId))
+            return false;
+
+        productId = GetWaitingProductKey(productId, definitionId, variant);
+        return true;
+    }
+
+    private static string GetWaitingProductKey(
+        string productId,
+        int definitionId,
+        ProductTransferPayload? variant)
+    {
+        var variantDefinitionId = variant?.VariantDefinitionId ?? 0;
+        if (variantDefinitionId == 0)
+            variantDefinitionId = definitionId;
+        return $"{productId}:{variantDefinitionId}:{variant?.VariantKeychainFoil ?? 0}:" +
+               (variant?.VariantKeychainId ?? string.Empty);
     }
 
     private static bool TryFindEmptyPlacementCandidatePrefix(
